@@ -13,6 +13,9 @@ from keyboards import admin_main_kb, admin_back_kb, admin_subs_kb
 import database as db
 
 router = Router()
+# Faqat shaxsiy chat
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 LINE = "━━━━━━━━━━━━━━━━━━"
 ADMIN_TITLE = f"🔐 <b>Admin Panel</b>\n{LINE}\nBo'lim tanlang 👇"

@@ -14,6 +14,9 @@ from keyboards import (
 import database as db
 
 router = Router()
+# Faqat shaxsiy chat
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 # Havoladan tashqarida qoldiriladigan bo'laklar:
 # <tg-emoji> teglari (premium emoji) YOKI oddiy emoji belgilari

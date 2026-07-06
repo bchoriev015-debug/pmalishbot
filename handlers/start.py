@@ -7,6 +7,9 @@ from aiogram.fsm.context import FSMContext
 from keyboards import main_menu_kb, back_kb
 
 router = Router()
+# Bot faqat shaxsiy chatda ishlaydi (guruhlarda jim turadi)
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 WELCOME_TEXT = """
 👋 <b>Assalomu alaykum, {name}!</b>

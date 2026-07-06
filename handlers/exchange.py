@@ -31,6 +31,9 @@ import database as db
 
 router = Router()
 logger = logging.getLogger(__name__)
+# Faqat shaxsiy chat
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 _TIME_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
 

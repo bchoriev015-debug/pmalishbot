@@ -16,6 +16,9 @@ from keyboards import (
 import database as db
 
 router = Router()
+# Faqat shaxsiy chat
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 
 # ── Sotiladigan kanallar ─────────────────────────────────────────────────────

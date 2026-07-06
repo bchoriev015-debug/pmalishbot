@@ -12,6 +12,9 @@ from states import ChatState
 from keyboards import back_kb, chat_end_kb, chat_reply_kb
 
 router = Router()
+# Faqat shaxsiy chat
+router.message.filter(F.chat.type == "private")
+router.callback_query.filter(F.message.chat.type == "private")
 
 
 @router.callback_query(F.data.startswith("chat_start:"))
