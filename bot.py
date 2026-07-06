@@ -15,6 +15,7 @@ from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
 from middlewares.register_middleware import RegisterMiddleware
 from middlewares.emoji_icons import custom_emoji_middleware
+from middlewares.force_sub import ForceSubMiddleware
 from handlers import start, channels, market, exchange, chat, admin
 
 logging.basicConfig(
@@ -64,6 +65,9 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     # Foydalanuvchini avtomatik ro'yxatga olish
     dp.update.middleware(RegisterMiddleware())
+    # Majburiy obuna tekshiruvi (admin belgilagan guruh/kanallar)
+    dp.message.middleware(ForceSubMiddleware())
+    dp.callback_query.middleware(ForceSubMiddleware())
 
     # Routerlar
     dp.include_router(admin.router)

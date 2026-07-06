@@ -84,6 +84,16 @@ async def init_db():
                 deleted     INTEGER DEFAULT 0
             )
         """)
+        # Majburiy obuna guruh/kanallari
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS force_subs (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id  INTEGER NOT NULL,
+                username TEXT,
+                title    TEXT,
+                link     TEXT NOT NULL
+            )
+        """)
         await db.commit()
 
 
@@ -423,6 +433,33 @@ async def get_other_channels_asc(owner_id: int, limit: int = 30) -> list[dict]:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+
+# ── Majburiy obuna ───────────────────────────────────────────────────────────
+
+async def add_force_sub(chat_id: int, username: Optional[str], title: str,
+                        link: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("""
+            INSERT INTO force_subs (chat_id, username, title, link)
+            VALUES (?, ?, ?, ?)
+        """, (chat_id, username, title, link))
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_force_subs() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM force_subs") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+
+async def del_force_sub(sub_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM force_subs WHERE id = ?", (sub_id,))
+        await db.commit()
 
 
 # ── Admin panel uchun ────────────────────────────────────────────────────────

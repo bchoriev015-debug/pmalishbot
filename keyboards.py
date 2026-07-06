@@ -282,8 +282,22 @@ def admin_main_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📢 Kanallar", callback_data="admin_channels"),
     )
     builder.row(
+        InlineKeyboardButton(text="🔒 Majburiy obuna", callback_data="admin_subs"),
+    )
+    builder.row(
         InlineKeyboardButton(text="📤 Reklama yuborish", callback_data="admin_broadcast"),
     )
+    return builder.as_markup()
+
+
+def admin_subs_kb(subs: list[dict]) -> InlineKeyboardMarkup:
+    """Majburiy obuna ro'yxati: har birini o'chirish + yangi qo'shish."""
+    builder = InlineKeyboardBuilder()
+    for s in subs:
+        builder.row(InlineKeyboardButton(
+            text=f"❌ {s['title']}", callback_data=f"fs_del:{s['id']}"))
+    builder.row(InlineKeyboardButton(text="➕ Qo'shish", callback_data="fs_add"))
+    builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_back"))
     return builder.as_markup()
 
 

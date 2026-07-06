@@ -55,6 +55,25 @@ async def cmd_start(message: Message, state: FSMContext):
     )
 
 
+@router.callback_query(F.data == "sub_check")
+async def sub_check(callback: CallbackQuery, state: FSMContext):
+    """Majburiy obuna: «Tekshirish» tugmasi."""
+    from middlewares.force_sub import get_missing_subs
+    missing = await get_missing_subs(callback.bot, callback.from_user.id)
+    if missing:
+        await callback.answer(
+            "❌ Hali qo'shilmagansiz! Avval guruhga qo'shiling.",
+            show_alert=True,
+        )
+        return
+    await state.clear()
+    await callback.message.edit_text(
+        WELCOME_TEXT.format(name=callback.from_user.full_name),
+        reply_markup=main_menu_kb(),
+    )
+    await callback.answer("✅ Rahmat! Xush kelibsiz!")
+
+
 @router.message(F.text == "🔙 Bekor qilish")
 async def cancel_reply_kb(message: Message, state: FSMContext):
     """Pastki klaviaturadagi bekor qilish tugmasi."""

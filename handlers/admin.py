@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 from config import ADMIN_ID
-from keyboards import admin_main_kb, admin_back_kb
+from keyboards import admin_main_kb, admin_back_kb, admin_subs_kb
 import database as db
 
 router = Router()
@@ -24,6 +24,10 @@ def is_admin(user_id: int) -> bool:
 
 class BroadcastState(StatesGroup):
     waiting_message = State()
+
+
+class ForceSubState(StatesGroup):
+    waiting_chat = State()
 
 
 # ── Panelni ochish ───────────────────────────────────────────────────────────
@@ -126,6 +130,130 @@ async def admin_channels(callback: CallbackQuery):
 
     await callback.message.edit_text("\n".join(lines), reply_markup=admin_back_kb())
     await callback.answer()
+
+
+# ── Majburiy obuna boshqaruvi ────────────────────────────────────────────────
+
+SUBS_TITLE = (
+    f"🔒 <b>Majburiy obuna</b>\n{LINE}\n"
+    "Foydalanuvchilar botdan foydalanish uchun\n"
+    "shu guruh/kanallarga qo'shilishi shart.\n\n"
+    "O'chirish uchun nomini bosing 👇"
+)
+
+
+@router.callback_query(F.data == "admin_subs")
+async def admin_subs(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+    await state.clear()
+    subs = await db.get_force_subs()
+    text = SUBS_TITLE if subs else (
+        f"🔒 <b>Majburiy obuna</b>\n{LINE}\n"
+        "Hozircha majburiy obuna yo'q.\n"
+        "«➕ Qo'shish» tugmasini bosing."
+    )
+    await callback.message.edit_text(text, reply_markup=admin_subs_kb(subs))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "fs_add")
+async def fs_add_start(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+    await state.set_state(ForceSubState.waiting_chat)
+    await callback.message.edit_text(
+        f"➕ <b>Majburiy obuna qo'shish</b>\n{LINE}\n"
+        "Guruh yoki kanal manzilini yuboring:\n"
+        "• <code>@guruhusername</code> yoki\n"
+        "• <code>-100...</code> ID (yopiq guruh uchun)\n\n"
+        "⚠️ Bot o'sha guruh/kanalda <b>admin</b> bo'lishi shart\n"
+        "(a'zolikni tekshira olishi uchun).",
+        reply_markup=admin_back_kb(),
+    )
+    await callback.answer()
+
+
+@router.message(ForceSubState.waiting_chat, F.text)
+async def fs_add_got(message: Message, state: FSMContext, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+
+    raw = message.text.strip()
+    for prefix in ("https://t.me/", "http://t.me/", "t.me/"):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+            break
+    ident = int(raw) if raw.lstrip("-").isdigit() else "@" + raw.lstrip("@")
+
+    try:
+        chat = await bot.get_chat(ident)
+    except Exception:
+        await message.answer(
+            "❌ Guruh/kanal topilmadi.\n\n"
+            "Avval botni o'sha guruhga qo'shib admin qiling, "
+            "keyin qayta yuboring.",
+            reply_markup=admin_back_kb(),
+        )
+        return
+
+    # Bot a'zo/admin ekanini tekshiramiz
+    try:
+        me = await bot.get_me()
+        m = await bot.get_chat_member(chat.id, me.id)
+        if m.status not in ("administrator", "member", "creator"):
+            raise ValueError
+    except Exception:
+        await message.answer(
+            "❌ Bot bu guruhda yo'q.\n\n"
+            "Botni guruhga qo'shib <b>admin</b> qiling, keyin qayta yuboring.",
+            reply_markup=admin_back_kb(),
+        )
+        return
+
+    # Qo'shilish havolasi
+    if chat.username:
+        link = f"https://t.me/{chat.username}"
+    else:
+        try:
+            invite = await bot.create_chat_invite_link(chat.id)
+            link = invite.invite_link
+        except Exception:
+            await message.answer(
+                "❌ Taklif havolasini olib bo'lmadi.\n\n"
+                "Botga guruhda <b>«Foydalanuvchilarni taklif qilish»</b> "
+                "huquqini bering, keyin qayta yuboring.",
+                reply_markup=admin_back_kb(),
+            )
+            return
+
+    await state.clear()
+    await db.add_force_sub(chat.id, chat.username, chat.title, link)
+    subs = await db.get_force_subs()
+    await message.answer(
+        f"✅ <b>{chat.title}</b> majburiy obunaga qo'shildi!\n\n"
+        "Endi foydalanuvchilar botdan foydalanish uchun\n"
+        "shu yerga qo'shilishi shart bo'ladi.",
+        reply_markup=admin_subs_kb(subs),
+    )
+
+
+@router.callback_query(F.data.startswith("fs_del:"))
+async def fs_del(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Ruxsat yo'q!", show_alert=True)
+        return
+    sub_id = int(callback.data.split(":")[1])
+    await db.del_force_sub(sub_id)
+    subs = await db.get_force_subs()
+    text = SUBS_TITLE if subs else (
+        f"🔒 <b>Majburiy obuna</b>\n{LINE}\n"
+        "Hozircha majburiy obuna yo'q."
+    )
+    await callback.message.edit_text(text, reply_markup=admin_subs_kb(subs))
+    await callback.answer("O'chirildi.")
 
 
 # ── Reklama yuborish (broadcast) ─────────────────────────────────────────────
