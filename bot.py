@@ -9,7 +9,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeDefault,
+    BotCommandScopeChat,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeAllGroupChats,
+)
 
 from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
@@ -26,11 +32,14 @@ logger = logging.getLogger(__name__)
 
 
 async def set_commands(bot: Bot):
-    # Hamma uchun: faqat /start
+    # Komandalar FAQAT shaxsiy chatda ko'rinadi
     await bot.set_my_commands(
         [BotCommand(command="start", description="🔄 Botni ishga tushirish")],
-        scope=BotCommandScopeDefault(),
+        scope=BotCommandScopeAllPrivateChats(),
     )
+    # Guruhlarda va umumiy ro'yxatda komandalar bo'lmasin ("/" bosganda chiqmaydi)
+    await bot.delete_my_commands(scope=BotCommandScopeDefault())
+    await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
     # Admin uchun: /start + /admin (admin hali /start bosmagan bo'lsa xato
     # bermasligi uchun try/except — /admin komandasi baribir ishlayveradi)
     if ADMIN_ID:
