@@ -129,7 +129,7 @@ async def sale_off(callback: CallbackQuery):
     from keyboards import channel_actions_kb
     try:
         await callback.message.edit_reply_markup(
-            reply_markup=channel_actions_kb(pk, bool(ch["ad_type"]), for_sale=False)
+            reply_markup=channel_actions_kb(pk, for_sale=False)
         )
     except Exception:
         pass

@@ -7,14 +7,6 @@ class AddChannel(StatesGroup):
     waiting_username = State()
 
 
-class AdInput(StatesGroup):
-    # Matnli reklama: avval matn, keyin havola
-    waiting_text = State()
-    waiting_link = State()
-    # Premium post: forward qilingan postni kutish
-    waiting_post = State()
-
-
 class SaleInput(StatesGroup):
     # Kanalni sotuvga qo'yish: narx kutish
     waiting_price = State()

@@ -64,15 +64,19 @@ async def admin_stats(callback: CallbackQuery):
 
     total_users = await db.count_users()
     total_channels = await db.count_channels()
-    text_ads = await db.count_channels_by_type("text")
-    premium_ads = await db.count_channels_by_type("premium")
+    for_sale = await db.count_for_sale()
+    total_ex = await db.count_exchanges()
+    ready_ex = await db.count_exchanges("ready")
+    posted_ex = await db.count_posted_exchanges()
 
     text = (
         f"📊 <b>Statistika</b>\n{LINE}\n"
         f"👥 Foydalanuvchilar: <b>{total_users}</b>\n"
-        f"📢 Kanallar: <b>{total_channels}</b>\n{LINE}\n"
-        f"📝 Matnli reklamalar: <b>{text_ads}</b>\n"
-        f"⭐ Premium postlar: <b>{premium_ads}</b>"
+        f"📢 Kanallar: <b>{total_channels}</b>\n"
+        f"💰 Sotuvda: <b>{for_sale}</b>\n{LINE}\n"
+        f"🔄 Kelishuvlar (jami): <b>{total_ex}</b>\n"
+        f"⏳ Joylanishini kutmoqda: <b>{ready_ex}</b>\n"
+        f"✅ Joylangan: <b>{posted_ex}</b>"
     )
     await callback.message.edit_text(text, reply_markup=admin_back_kb())
     await callback.answer()
@@ -119,11 +123,10 @@ async def admin_channels(callback: CallbackQuery):
         await callback.answer()
         return
 
-    ad_label = {"text": "📝", "premium": "⭐", None: "⚠️"}
     lines = [f"📢 <b>Kanallar: {total} ta</b>\n{LINE}"]
     for ch in channels:
         uname = f"@{ch['username']}" if ch["username"] else "—"
-        mark = ad_label.get(ch["ad_type"], "⚠️")
+        mark = "💰" if ch.get("for_sale") else "📢"
         lines.append(
             f"{mark} <b>{ch['title']}</b> ({uname})\n"
             f"   👥 {ch['subscribers']} | 👤 egasi: <code>{ch['owner_id']}</code>"

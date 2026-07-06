@@ -1,14 +1,13 @@
-"""Kanal qo'shish, reklama belgilash va "Mening kanallarim" bo'limi."""
+"""Kanal qo'shish va "Mening kanallarim" bo'limi."""
 import re
-import html
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 
-from states import AddChannel, AdInput
+from states import AddChannel
 from keyboards import (
-    back_kb, recheck_kb, ad_type_kb, channel_actions_kb, delete_confirm_kb,
+    back_kb, recheck_kb, channel_actions_kb, delete_confirm_kb,
     pick_channel_kb, after_add_kb,
 )
 import database as db
@@ -18,51 +17,8 @@ router = Router()
 router.message.filter(F.chat.type == "private")
 router.callback_query.filter(F.message.chat.type == "private")
 
-# Havoladan tashqarida qoldiriladigan bo'laklar:
-# <tg-emoji> teglari (premium emoji) YOKI oddiy emoji belgilari
-_EMOJI_SPLIT_RE = re.compile(
-    r"<tg-emoji\b[^>]*>.*?</tg-emoji>"
-    r"|[\U0001F000-\U0001FAFF☀-➿⬀-⯿←-⇿"
-    r"\U0001F1E6-\U0001F1FF️‍⃣]+",
-    re.DOTALL,
-)
-
 
 # ── Yordamchi funksiyalar ────────────────────────────────────────────────────
-
-
-def build_link_ad(html_text: str, link: str) -> str:
-    """Havolani FAQAT matnga yopishtiradi — emojilar havoladan tashqarida.
-
-    Sabab: Telegram havola ichidagi premium emojini o'chirib tashlaydi.
-    Oddiy emojilar ham havoladan chiqarilib, toza turadi.
-    Natija: <a>matn</a>emoji<a>matn</a> — ko'rinishi bir xil.
-    """
-    href = html.escape(link, quote=True)
-    out = []
-    last = 0
-    has_plain = False
-    for m in _EMOJI_SPLIT_RE.finditer(html_text):
-        seg = html_text[last:m.start()]
-        if seg.strip():
-            out.append(f'<a href="{href}">{seg}</a>')
-            has_plain = True
-        elif seg:
-            out.append(seg)  # faqat bo'shliq — havolasiz qoldiramiz
-        out.append(m.group(0))
-        last = m.end()
-    tail = html_text[last:]
-    if tail.strip():
-        out.append(f'<a href="{href}">{tail}</a>')
-        has_plain = True
-    elif tail:
-        out.append(tail)
-
-    if not has_plain:
-        # Faqat emoji yuborilgan — bosiladigan matn yo'q,
-        # shunda hammasini oddiy havolaga o'raymiz
-        return f'<a href="{href}">{html_text}</a>'
-    return "".join(out)
 
 def normalize_username(raw: str) -> str | None:
     """Kiritilgan matndan toza @username qaytaradi (yoki None)."""
@@ -75,20 +31,6 @@ def normalize_username(raw: str) -> str | None:
     if not re.fullmatch(r"[A-Za-z0-9_]{4,32}", raw):
         return None
     return "@" + raw
-
-
-def normalize_link(raw: str) -> str | None:
-    """Havolani to'liq URL ko'rinishiga keltiradi (yoki None)."""
-    raw = raw.strip()
-    if raw.startswith(("http://", "https://")):
-        return raw
-    if raw.startswith("t.me/"):
-        return "https://" + raw
-    if raw.startswith("@"):
-        u = raw.lstrip("@")
-        if re.fullmatch(r"[A-Za-z0-9_]{4,32}", u):
-            return "https://t.me/" + u
-    return None
 
 
 async def _register_channel(bot: Bot, chat, owner_id: int):
@@ -153,19 +95,15 @@ async def _check_and_add(bot: Bot, owner_id: int, raw: str):
 
 def _channel_card(ch: dict) -> str:
     """Kanallarim ro'yxatidagi bitta kanal ko'rinishi."""
-    if ch["ad_type"] == "text":
-        ad = "📝 Matnli reklama"
-    elif ch["ad_type"] == "premium":
-        ad = "⭐ Tayyor post"
-    else:
-        ad = "⚠️ Hali tayyor emas"
     uname = f"@{ch['username']}" if ch["username"] else "—"
     card = (
         f"📢 <b>{ch['title']}</b>\n"
         f"{uname}\n"
-        f"👥 {ch['subscribers']} obunachi\n"
-        f"Reklama: {ad}"
+        f"👥 {ch['subscribers']} obunachi"
     )
+    if ch.get("pm_tier"):
+        tier = "1K" if ch["pm_tier"] == 1000 else str(ch["pm_tier"])
+        card += f"\n📊 PM: {tier}"
     if ch.get("for_sale"):
         card += f"\n💰 Sotuvda: <b>{ch['sale_price']}</b>"
     return card
@@ -273,111 +211,6 @@ async def recheck_channel(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer()
 
 
-# ── Reklama turini tanlash ───────────────────────────────────────────────────
-
-@router.callback_query(F.data.startswith("set_ad:"))
-async def set_ad_choose(callback: CallbackQuery):
-    pk = int(callback.data.split(":")[1])
-    await callback.message.edit_text(
-        "📢 <b>Reklama turini tanlang</b>",
-        reply_markup=ad_type_kb(pk),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("ad_text:"))
-async def ad_text_start(callback: CallbackQuery, state: FSMContext):
-    pk = int(callback.data.split(":")[1])
-    await state.set_state(AdInput.waiting_text)
-    await state.update_data(channel_pk=pk)
-    await callback.message.edit_text(
-        "📝 <b>Matnli reklama</b>\n\n"
-        "Reklama <b>yozuvini</b> yuboring.\n"
-        "Bu odamlar ko'radigan matn bo'ladi.",
-        reply_markup=back_kb(),
-    )
-    await callback.answer()
-
-
-@router.message(AdInput.waiting_text, F.text)
-async def ad_text_got(message: Message, state: FSMContext):
-    # html_text — foydalanuvchining premium emoji va formatlashini
-    # aynan saqlaydi (<tg-emoji>, <b> va h.k.)
-    await state.update_data(ad_text=message.html_text)
-    await state.set_state(AdInput.waiting_link)
-    await message.answer(
-        "🔗 Endi <b>havolani</b> yuboring.\n"
-        "Masalan: <code>https://t.me/mychannel</code>\n\n"
-        "Yuqoridagi yozuv shu havolaga olib boradi.",
-        reply_markup=back_kb(),
-    )
-
-
-@router.message(AdInput.waiting_link, F.text)
-async def ad_link_got(message: Message, state: FSMContext):
-    link = normalize_link(message.text)
-    if not link:
-        await message.answer(
-            "❌ Havola noto'g'ri.\n\n"
-            "Masalan: <code>https://t.me/mychannel</code>",
-            reply_markup=back_kb(),
-        )
-        return
-
-    data = await state.get_data()
-    pk = data["channel_pk"]
-    # ad_text allaqachon xavfsiz HTML (html_text dan kelgan).
-    # Premium emojilar havoladan tashqarida qoladi (aks holda Telegram o'chiradi).
-    ad_html = build_link_ad(data["ad_text"], link)
-
-    await db.set_ad_text(pk, ad_html, link)
-    await state.clear()
-    await message.answer(
-        "✅ <b>Reklama tayyor!</b>\n\n"
-        "Mana shunday ko'rinadi:\n\n"
-        f"{ad_html}",
-        reply_markup=back_kb(),
-    )
-
-
-@router.callback_query(F.data.startswith("ad_premium:"))
-async def ad_premium_start(callback: CallbackQuery, state: FSMContext):
-    pk = int(callback.data.split(":")[1])
-    await state.set_state(AdInput.waiting_post)
-    await state.update_data(channel_pk=pk)
-    await callback.message.edit_text(
-        "⭐ <b>Tayyor post</b>\n\n"
-        "Tayyor postingizni menga yuboring (forward qiling).\n"
-        "Post o'zgarmasdan saqlanadi.",
-        reply_markup=back_kb(),
-    )
-    await callback.answer()
-
-
-@router.message(AdInput.waiting_post)
-async def ad_premium_got(message: Message, state: FSMContext, bot: Bot):
-    data = await state.get_data()
-    pk = data["channel_pk"]
-    # copy_message uchun manzil: post shu suhbatda turibdi (forward bo'lsa ham).
-    # Keyinchalik copy_message aynan shu xabardan nusxa oladi — emoji/format saqlanadi.
-    await db.set_ad_premium(pk, message.message_id, message.chat.id)
-    await state.clear()
-    await message.answer(
-        "✅ <b>Post saqlandi!</b>\n\n"
-        "Mana shunday ko'rinadi:",
-        reply_markup=back_kb(),
-    )
-    # Namuna: saqlangan postning nusxasini ko'rsatamiz
-    try:
-        await bot.copy_message(
-            chat_id=message.chat.id,
-            from_chat_id=message.chat.id,
-            message_id=message.message_id,
-        )
-    except Exception:
-        pass
-
-
 # ── Mening kanallarim ────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "my_channels")
@@ -400,40 +233,8 @@ async def my_channels(callback: CallbackQuery):
     for ch in chans:
         await callback.message.answer(
             _channel_card(ch),
-            reply_markup=channel_actions_kb(
-                ch["id"], bool(ch["ad_type"]), bool(ch.get("for_sale"))
-            ),
+            reply_markup=channel_actions_kb(ch["id"], bool(ch.get("for_sale"))),
         )
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("view_ad:"))
-async def view_ad(callback: CallbackQuery, bot: Bot):
-    pk = int(callback.data.split(":")[1])
-    ch = await db.get_channel(pk)
-    if not ch or ch["owner_id"] != callback.from_user.id:
-        await callback.answer("Topilmadi.", show_alert=True)
-        return
-
-    if ch["ad_type"] == "text" and ch["ad_text"]:
-        await callback.message.answer(
-            f"📢 <b>Reklamangiz shunday ko'rinadi:</b>\n\n{ch['ad_text']}"
-        )
-    elif ch["ad_type"] == "premium" and ch["stored_msg_id"]:
-        await callback.message.answer("📢 <b>Reklamangiz shunday ko'rinadi:</b>")
-        try:
-            await bot.copy_message(
-                chat_id=callback.from_user.id,
-                from_chat_id=ch["stored_chat_id"],
-                message_id=ch["stored_msg_id"],
-            )
-        except Exception:
-            await callback.message.answer(
-                "⚠️ Postni ko'rsatib bo'lmadi (ehtimol o'chirilgan). Qayta qo'shing."
-            )
-    else:
-        await callback.answer("Reklama hali belgilanmagan.", show_alert=True)
-        return
     await callback.answer()
 
 

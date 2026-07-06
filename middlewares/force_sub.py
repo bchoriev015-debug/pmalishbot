@@ -82,5 +82,6 @@ class ForceSubMiddleware(BaseMiddleware):
             await event.answer(PROMPT_TEXT, reply_markup=subs_kb(missing))
         else:
             await event.answer()
-            await event.message.answer(PROMPT_TEXT, reply_markup=subs_kb(missing))
+            if event.message:  # eski/o'chirilgan xabar bo'lsa message None bo'ladi
+                await event.message.answer(PROMPT_TEXT, reply_markup=subs_kb(missing))
         return None

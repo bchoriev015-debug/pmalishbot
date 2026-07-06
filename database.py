@@ -175,30 +175,6 @@ async def get_user_channels(owner_id: int) -> list[dict]:
             return [dict(r) for r in rows]
 
 
-async def set_ad_text(channel_pk: int, ad_text: str, ad_link: str):
-    """Matnli reklamani saqlaydi (HTML matn + havola)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            UPDATE channels
-            SET ad_type = 'text', ad_text = ?, ad_link = ?,
-                stored_msg_id = NULL, stored_chat_id = NULL
-            WHERE id = ?
-        """, (ad_text, ad_link, channel_pk))
-        await db.commit()
-
-
-async def set_ad_premium(channel_pk: int, msg_id: int, chat_id: int):
-    """Premium postni saqlaydi (copy_message uchun manzil)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            UPDATE channels
-            SET ad_type = 'premium', stored_msg_id = ?, stored_chat_id = ?,
-                ad_text = NULL, ad_link = NULL
-            WHERE id = ?
-        """, (msg_id, chat_id, channel_pk))
-        await db.commit()
-
-
 async def delete_channel(channel_pk: int, owner_id: int) -> bool:
     """Kanalni o'chiradi (faqat egasi o'chira oladi)."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -496,10 +472,30 @@ async def count_channels() -> int:
             return row[0] if row else 0
 
 
-async def count_channels_by_type(ad_type: str) -> int:
+async def count_for_sale() -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT COUNT(*) FROM channels WHERE ad_type = ?", (ad_type,)
+            "SELECT COUNT(*) FROM channels WHERE for_sale = 1"
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+
+async def count_exchanges(status: Optional[str] = None) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        if status:
+            q = ("SELECT COUNT(*) FROM exchanges WHERE status = ?", (status,))
+        else:
+            q = ("SELECT COUNT(*) FROM exchanges", ())
+        async with db.execute(*q) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+
+async def count_posted_exchanges() -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM exchanges WHERE posted = 1"
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0

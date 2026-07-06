@@ -224,29 +224,11 @@ def recheck_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def ad_type_kb(channel_pk: int) -> InlineKeyboardMarkup:
-    """Kanal qo'shilgach — reklama turini tanlash."""
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text="📝 Matnli reklama", callback_data=f"ad_text:{channel_pk}"))
-    builder.row(InlineKeyboardButton(
-        text="⭐ Premium post", callback_data=f"ad_premium:{channel_pk}"))
-    builder.row(InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_main"))
-    return builder.as_markup()
-
-
-def channel_actions_kb(channel_pk: int, has_ad: bool, for_sale: bool = False) -> InlineKeyboardMarkup:
+def channel_actions_kb(channel_pk: int, for_sale: bool = False) -> InlineKeyboardMarkup:
     """Bitta kanal uchun amallar (kanallarim ro'yxatida)."""
     builder = InlineKeyboardBuilder()
-    if has_ad:
-        builder.row(InlineKeyboardButton(
-            text="👁 Reklamani ko'rish", callback_data=f"view_ad:{channel_pk}"))
-        builder.row(InlineKeyboardButton(
-            text="✏️ Reklamani o'zgartirish", callback_data=f"set_ad:{channel_pk}"))
-    else:
-        # Reklama hali belgilanmagan — belgilash tugmasi
-        builder.row(InlineKeyboardButton(
-            text="➕ Reklama qo'shish", callback_data=f"set_ad:{channel_pk}"))
+    builder.row(InlineKeyboardButton(
+        text="🔄 Reklama almashish", callback_data="exchange"))
     if for_sale:
         builder.row(InlineKeyboardButton(
             text="🚫 Sotuvdan olish", callback_data=f"sale_off:{channel_pk}"))
