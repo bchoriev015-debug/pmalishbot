@@ -304,3 +304,47 @@ async def admin_broadcast_send(message: Message, state: FSMContext, bot: Bot):
         f"❌ Xato (bloklagan): <b>{failed}</b>",
         reply_markup=admin_back_kb(),
     )
+
+
+# ============================================================
+# VAQTINCHALIK: VPS ga ko'chish uchun baza backup buyrug'i
+# Ko'chirish tugagach bu blokni o'chirib tashlasa bo'ladi
+# ============================================================
+@router.message(Command("backup"))
+async def cmd_backup(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    import os
+    import shutil
+    import aiosqlite
+    from aiogram.types import FSInputFile
+    from config import DB_PATH
+
+    if not os.path.exists(DB_PATH):
+        await message.answer(f"❌ Baza fayli topilmadi: {DB_PATH}")
+        return
+
+    # Yozilayotgan bazani buzmaslik uchun avval nusxa olamiz
+    backup_path = DB_PATH + ".backup"
+    shutil.copy2(DB_PATH, backup_path)
+
+    # Har bir jadvaldagi yozuvlar sonini hisoblaymiz
+    lines = []
+    async with aiosqlite.connect(backup_path) as conn:
+        async with conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ) as cur:
+            tables = [r[0] for r in await cur.fetchall()]
+        for t in tables:
+            async with conn.execute(f"SELECT COUNT(*) FROM '{t}'") as cur:
+                (n,) = await cur.fetchone()
+            lines.append(f"• {t}: {n} ta yozuv")
+
+    size_kb = os.path.getsize(backup_path) / 1024
+    await message.answer_document(
+        FSInputFile(backup_path, filename="pmalishbot.db"),
+        caption="💾 pmalishbot baza backup\n"
+        + "\n".join(lines)
+        + f"\n📦 Hajmi: {size_kb:.0f} KB",
+    )
+    os.remove(backup_path)
